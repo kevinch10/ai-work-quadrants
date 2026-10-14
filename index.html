@@ -31,6 +31,9 @@
   --c-green: #258a59;
   --c-purple: #7a55b5;
   --c-slate: #556274;
+  --c-teal: #13777a;
+  --c-orange: #bd5f1a;
+  --c-pink: #b2427c;
   --font: "Fira Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "Fira Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -40,7 +43,7 @@
     --accent: #e0566a; --q-warm: #241d29; --q-warm-line: #5b4560; --q-cool: #1a2430; --q-cool-line: #3b5670;
     --note-bg: #20262f; --drop: #23324a; --chip-fg: #ffffff;
     --c-navy: #3a5a88; --c-blue: #2a7fb0; --c-sky: #3f93c4; --c-gold: #a8801c; --c-red: #c84455;
-    --c-green: #23885b; --c-purple: #8160bd; --c-slate: #637084;
+    --c-green: #23885b; --c-purple: #8160bd; --c-slate: #637084; --c-teal: #1b8a8d; --c-orange: #c56a24; --c-pink: #bd4f88;
     color-scheme: dark;
   }
 }
@@ -49,7 +52,7 @@
   --accent: #e0566a; --q-warm: #241d29; --q-warm-line: #5b4560; --q-cool: #1a2430; --q-cool-line: #3b5670;
   --note-bg: #20262f; --drop: #23324a; --chip-fg: #ffffff;
   --c-navy: #3a5a88; --c-blue: #2a7fb0; --c-sky: #3f93c4; --c-gold: #a8801c; --c-red: #c84455;
-  --c-green: #23885b; --c-purple: #8160bd; --c-slate: #637084;
+  --c-green: #23885b; --c-purple: #8160bd; --c-slate: #637084; --c-teal: #1b8a8d; --c-orange: #c56a24; --c-pink: #bd4f88;
   color-scheme: dark;
 }
 
@@ -275,7 +278,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 <script>
 (() => {
   const QUADS = ["tl", "tr", "bl", "br"];
-  const COLORS = ["navy", "blue", "sky", "gold", "red", "green", "purple", "slate"];
+  const COLORS = ["navy", "blue", "sky", "gold", "red", "green", "purple", "teal", "orange", "pink", "slate"];
   const DEFAULT_LABELS = {
     title: "AI work quadrants",
     colLeft: "Work with a right answer",
@@ -308,7 +311,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     ["Bank", "Plan a negotiation", "br", "navy"],
     ["Asset manager", "Write investor letter", "br", "green"],
     ["Government", "Draft a policy", "br", "blue"],
-  ].map(([func, task, quad, color], i) => ({ id: "ex" + String(i + 1).padStart(2, "0"), func, task, quad, color, reason: "", placed: true, created: i + 1 }));
+    // A person leads, AI inside
+    ["Stocks", "Work out capital gains tax", "tl", "teal", "There is one correct figure, but it rests on your own trade records and tax situation. You lead, and AI does the arithmetic and flags missing lots."],
+    ["Student", "Solve a finance problem set", "tl", "orange", "The answers are right or wrong, and the point is that you learn the method. You work the problem and use AI to check steps, not to hand in its answers."],
+    ["CV", "Check dates and job titles", "tl", "pink", "Only you know the true facts. AI can spot gaps, overlaps and inconsistent formatting, but you confirm every line."],
+    // Agents run it, a person judges
+    ["Stocks", "Screen stocks for a watchlist", "tr", "teal", "There is no single right list. An agent can run many screens across thousands of tickers, and you judge which names deserve a closer look."],
+    ["Student", "Gather sources for a literature review", "tr", "orange", "Many reading lists could work. Agents can search and summarise widely, and you judge which sources are credible and relevant."],
+    ["CV", "Tailor a CV to each job posting", "tr", "pink", "Each posting wants a different emphasis. An agent drafts a version per job, and you judge whether each one still sounds like you and stays true."],
+    // AI alone, with checks
+    ["Stocks", "Pull daily closing prices", "bl", "teal", "A fixed, checkable fact. AI or a script can fetch it alone, with a spot check against the exchange or a second data source."],
+    ["Student", "Format citations in APA", "bl", "orange", "The style guide has right answers. AI can format the whole list, and a quick check catches any wrong author or year."],
+    ["CV", "Fix spelling and grammar", "bl", "pink", "Errors are clear-cut. AI can correct them alone, and you skim the result before sending."],
+    // A person decides, AI alongside
+    ["Stocks", "Decide whether to sell a holding", "br", "teal", "It depends on your goals, risk and timing, and you carry the outcome. AI can lay out scenarios and counterarguments, but the call is yours."],
+    ["Student", "Choose electives for next term", "br", "orange", "It depends on your interests and career plans. AI can compare workloads and prerequisites, and you make the choice."],
+    ["CV", "Choose which experience to highlight", "br", "pink", "This is your story to tell. AI can suggest angles for a role, and you decide what represents you best."],
+  ].map(([func, task, quad, color, reason = ""], i) => ({ id: "ex" + String(i + 1).padStart(2, "0"), func, task, quad, color, reason, placed: true, created: i + 1 }));
 
   const state = {
     items: [],              // {id, func, task, quad, color, reason, placed, created}
@@ -342,9 +361,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   let store = null;
 
   function localStore() {
-    let data = { items: SEED.map(it => ({ ...it })), labels: {} };
+    let data = { items: [], labels: {}, seeded: [] };
     try { const raw = localStorage.getItem(LOCAL_KEY); if (raw) data = JSON.parse(raw) || data; } catch (e) {}
     const save = () => { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); } catch (e) {} };
+    // Saves from before this list existed already held the first 16 examples.
+    if (!Array.isArray(data.seeded)) data.seeded = SEED.slice(0, 16).map(it => it.id);
+    const fresh = SEED.filter(it => !data.seeded.includes(it.id));
+    if (fresh.length) {
+      data.items.push(...fresh.map(it => ({ ...it })));
+      data.seeded.push(...fresh.map(it => it.id));
+      save();
+    }
     const emit = () => { state.items = data.items.slice(); state.labels = { ...DEFAULT_LABELS, ...data.labels }; render(); };
     return {
       start() { emit(); },
