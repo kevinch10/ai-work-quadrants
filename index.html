@@ -156,6 +156,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); font-
 .btn.ghost { background: var(--panel); color: var(--ink); }
 .btn.small { font-size: 13.5px; padding: 2px 10px; }
 .btn.danger { border-color: var(--c-red); background: var(--c-red); color: var(--chip-fg); }
+.btn.warn { border-color: var(--c-red); background: var(--panel); color: var(--c-red); }
+.btn.warn.armed { background: var(--c-red); color: var(--chip-fg); }
 .btn.add { border-style: dashed; background: transparent; color: var(--ink); }
 
 .hint { background: var(--note-bg); border-left: 3px solid var(--c-blue); padding: 8px 14px; font-style: italic; color: var(--ink-soft); font-size: 14px; border-radius: 0 4px 4px 0; }
@@ -387,6 +389,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     }
   }
 
+  // A button that needs a second click within a few seconds before it acts.
+  function confirmButton(label, armedLabel, extraClass, action) {
+    const b = h("button", { type: "button", class: "btn warn " + extraClass, text: label });
+    let timer;
+    b.addEventListener("click", () => {
+      if (!b.classList.contains("armed")) {
+        b.classList.add("armed"); b.textContent = armedLabel;
+        timer = setTimeout(() => { b.classList.remove("armed"); b.textContent = label; }, 4000);
+        return;
+      }
+      clearTimeout(timer);
+      action();
+    });
+    return b;
+  }
+
   /* ---------- Rendering ---------- */
   function renderLabels() {
     document.querySelectorAll("[data-label]").forEach(el => {
@@ -459,6 +477,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           : h("div", { class: "note-text muted", text: state.canWrite ? "No reason written yet. Use Edit to add one." : "No reason written yet." })),
       h("div", { class: "note-actions" },
         state.canWrite ? h("button", { class: "btn small", type: "button", text: "Edit", onclick: () => openEditor(it.id) }) : null,
+        state.canWrite ? confirmButton("Delete", "Click again to delete", "small", () => deleteTask(it.id)) : null,
         h("button", { class: "btn small ghost", type: "button", text: placed ? "Take off board" : "Place on board", onclick: () => setPlaced(it, !placed) }),
         h("button", { class: "btn small ghost", type: "button", text: "Close", onclick: () => select(null) })));
   }
@@ -479,6 +498,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     if (state.items.length) {
       kids.push(h("button", { type: "button", class: "btn", text: "Show all", onclick: () => placeAll(true) }));
       kids.push(h("button", { type: "button", class: "btn ghost", text: "Clear", onclick: () => placeAll(false) }));
+      if (state.canWrite) kids.push(confirmButton("Delete all", `Click again to delete all ${state.items.length}`, "", deleteAll));
     }
     tray.replaceChildren(...kids);
   }
@@ -491,7 +511,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     const n = state.items.length, p = state.items.filter(isPlaced).length;
     $("#count").textContent = `${p} of ${n} placed`;
     $("#hint").textContent = state.canWrite
-      ? "▸ Click any heading to rename it. Click a card to place it, drag tasks between quadrants, or click a placed task to edit it."
+      ? "▸ Click any heading to rename it. Click a card to place it, drag tasks between quadrants, or click a placed task to edit or delete it. Delete all empties the board."
       : "▸ Click a card to place it, or click a placed task to read why it sits there. Only editors can add or change tasks.";
     document.querySelectorAll("[data-label]").forEach(makeEditable);
   }
@@ -537,6 +557,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     if (!state.canWrite) { for (const it of state.items) state.localPlaced[it.id] = val; render(); return; }
     if (!val) state.selected = null;
     for (const it of state.items) if (!!it.placed !== val) await write(() => store.update(it.id, { placed: val }));
+  }
+
+  async function deleteTask(id) {
+    if (state.selected === id) state.selected = null;
+    await write(() => store.remove(id), "Couldn't delete that task. Try again.");
+  }
+
+  async function deleteAll() {
+    state.selected = null;
+    for (const it of state.items.slice()) await write(() => store.remove(it.id), "Some tasks didn't delete. Try again.");
   }
 
   /* ---------- Drag and drop ---------- */
@@ -613,8 +643,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     if (!ed.del.dataset.armed) { ed.del.dataset.armed = "1"; ed.del.textContent = "Click again to delete"; ed.del.className = "btn danger"; return; }
     const id = state.editing;
     closeEditor();
-    if (state.selected === id) state.selected = null;
-    await write(() => store.remove(id), "Couldn't delete that task. Try again.");
+    await deleteTask(id);
   });
 
   ed.form.addEventListener("submit", async e => {

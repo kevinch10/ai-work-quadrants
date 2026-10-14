@@ -6,5 +6,6 @@ An editable 2×2 board for sorting work tasks by two questions: does the work ha
 - **+ Add task** adds your own example; **+ Add** inside a quadrant adds one straight there.
 - Click a card to place it, drag tasks between quadrants, and click a placed task to edit it or read why it sits there.
 - **Show all** / **Clear** place or remove every task.
+- To delete one task, click it on the board and press **Delete** (click twice to confirm). **Delete all** empties the board so you can start from scratch.
 
 It's a single static `index.html` with no build step. On a normal website, changes are saved in your own browser (localStorage), so each visitor sees their own copy, starting from the 16 example tasks.
